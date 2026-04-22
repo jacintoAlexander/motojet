@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — MotoJet</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏍️</text></svg>">
+</head>
+<body>
+<div class="notification-stack" id="notif-stack"></div>
+
+<div class="admin-layout">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="admin-logo">
+      <a href="index.html" class="logo" style="font-size:24px">MOTO<span>JET</span><sup>MZ</sup></a>
+      <div style="font-size:11px;color:var(--gray);margin-top:4px;letter-spacing:1px;text-transform:uppercase">Painel Admin</div>
+    </div>
+
+    <nav>
+      <button class="admin-nav-item active" data-page="dashboard" onclick="showPage('dashboard',this)">
+        <span class="admin-nav-icon">📊</span> Dashboard
+      </button>
+      <button class="admin-nav-item" data-page="orders" onclick="showPage('orders',this)">
+        <span class="admin-nav-icon">📦</span> Pedidos
+      </button>
+      <button class="admin-nav-item" data-page="riders" onclick="showPage('riders',this)">
+        <span class="admin-nav-icon">🏍️</span> Motoboys
+      </button>
+      <button class="admin-nav-item" data-page="map" onclick="showPage('map',this)">
+        <span class="admin-nav-icon">🗺️</span> Mapa ao vivo
+      </button>
+    </nav>
+
+    <div style="padding:24px;margin-top:auto">
+      <div style="background:rgba(211,47,47,0.1);border:1px solid rgba(211,47,47,0.2);border-radius:12px;padding:16px">
+        <div style="font-size:12px;color:var(--gray);margin-bottom:4px">Estado do sistema</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:var(--green-light);animation:pulse 2s infinite"></span>
+          <span style="font-size:14px;font-weight:600;color:var(--green-light)">Operacional</span>
+        </div>
+      </div>
+      <div style="margin-top:16px;font-size:12px;color:var(--gray)">
+        <div>Versão 1.0.0 MVP</div>
+        <div>Maputo, Moçambique 🇲🇿</div>
+      </div>
+      <a href="index.html" class="btn btn-secondary btn-sm btn-block" style="margin-top:16px">← Voltar ao site</a>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="admin-main" id="admin-main">
+    <!-- Dashboard page -->
+    <div id="page-dashboard">
+      <div class="admin-topbar">
+        <h1 class="admin-page-title">Dashboard</h1>
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-size:13px;color:var(--gray)" id="last-updated">—</span>
+          <button class="btn btn-primary btn-sm" onclick="refreshAll()">🔄 Atualizar</button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="stats-row">
+        <div class="stat-card" style="--icon:'📦'">
+          <div class="stat-card-label">Total de pedidos</div>
+          <div class="stat-card-value" id="stat-total">0</div>
+          <div class="stat-card-change">↑ Hoje</div>
+        </div>
+        <div class="stat-card" style="--icon:'✅'">
+          <div class="stat-card-label">Entregues</div>
+          <div class="stat-card-value" id="stat-entregue" style="color:var(--green-light)">0</div>
+          <div class="stat-card-change">↑ Taxa de sucesso</div>
+        </div>
+        <div class="stat-card" style="--icon:'🏍️'">
+          <div class="stat-card-label">Motoboys online</div>
+          <div class="stat-card-value" id="stat-riders" style="color:var(--yellow)">0</div>
+          <div class="stat-card-change">Disponíveis agora</div>
+        </div>
+        <div class="stat-card" style="--icon:'💰'">
+          <div class="stat-card-label">Receita total</div>
+          <div class="stat-card-value" id="stat-revenue" style="color:var(--red-light);font-size:28px">0</div>
+          <div class="stat-card-change" style="font-size:11px">MZN</div>
+        </div>
+      </div>
+
+      <!-- Status breakdown -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+        <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);padding:24px">
+          <h3 style="font-family:var(--font-display);font-size:20px;font-weight:800;margin-bottom:20px">Pedidos por status</h3>
+          <div id="status-breakdown"></div>
+        </div>
+        <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);padding:24px">
+          <h3 style="font-family:var(--font-display);font-size:20px;font-weight:800;margin-bottom:20px">Pagamentos</h3>
+          <div id="payment-breakdown"></div>
+        </div>
+      </div>
+
+      <!-- Recent orders -->
+      <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);padding:24px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h3 style="font-family:var(--font-display);font-size:20px;font-weight:800">Pedidos recentes</h3>
+          <button class="btn btn-secondary btn-sm" onclick="showPage('orders',document.querySelector('[data-page=orders]'))">Ver todos →</button>
+        </div>
+        <div id="recent-orders-table"></div>
+      </div>
+    </div>
+
+    <!-- Orders page -->
+    <div id="page-orders" style="display:none">
+      <div class="admin-topbar">
+        <h1 class="admin-page-title">Pedidos</h1>
+        <div style="display:flex;gap:12px">
+          <select class="form-control" id="status-filter" onchange="renderOrdersTable()" style="width:auto;padding:8px 14px;font-size:13px">
+            <option value="">Todos os estados</option>
+            <option value="recebido">Recebido</option>
+            <option value="atribuido">Atribuído</option>
+            <option value="coleta">Em coleta</option>
+            <option value="rota">Em rota</option>
+            <option value="entregue">Entregue</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="renderOrdersTable()">🔄</button>
+        </div>
+      </div>
+      <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);overflow:hidden">
+        <div style="overflow-x:auto">
+          <table class="orders-table" id="full-orders-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Rota</th>
+                <th>Tipo</th>
+                <th>Preço</th>
+                <th>Pagamento</th>
+                <th>Status</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody id="orders-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Riders page -->
+    <div id="page-riders" style="display:none">
+      <div class="admin-topbar">
+        <h1 class="admin-page-title">Motoboys</h1>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px" id="riders-grid"></div>
+    </div>
+
+    <!-- Map page -->
+    <div id="page-map" style="display:none">
+      <div class="admin-topbar">
+        <h1 class="admin-page-title">Mapa ao vivo</h1>
+        <span class="badge">🟢 Live</span>
+      </div>
+      <div style="border-radius:var(--radius);overflow:hidden;border:1px solid var(--card-border)">
+        <div id="admin-map" style="height:calc(100vh - 180px)"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/main.js"></script>
+<script src="js/map.js"></script>
+<script>
+let adminMap = null;
+const statusLabels = { recebido:'Recebido', atribuido:'Atribuído', coleta:'Em coleta', rota:'Em rota', entregue:'Entregue' };
+const payLabels = { mpesa:'M-Pesa', emola:'e-Mola', dinheiro:'Dinheiro' };
+
+document.addEventListener('DOMContentLoaded', () => {
+  refreshAll();
+  setInterval(refreshAll, 10000);
+});
+
+function refreshAll() {
+  updateDashboard();
+  document.getElementById('last-updated').textContent = 'Atualizado: ' + new Date().toLocaleTimeString('pt');
+}
+
+function showPage(page, btn) {
+  ['dashboard','orders','riders','map'].forEach(p => {
+    document.getElementById('page-'+p).style.display = 'none';
+  });
+  document.querySelectorAll('.admin-nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-'+page).style.display = 'block';
+  if (btn) btn.classList.add('active');
+
+  if (page === 'orders') renderOrdersTable();
+  if (page === 'riders') renderRiders();
+  if (page === 'map') initAdminMap();
+}
+
+function updateDashboard() {
+  const orders = MotoJet.orders.getAll();
+  const riders = MotoJet.riders.getAll();
+
+  document.getElementById('stat-total').textContent = orders.length;
+  document.getElementById('stat-entregue').textContent = orders.filter(o => o.status === 'entregue').length;
+  document.getElementById('stat-riders').textContent = riders.filter(r => r.online).length;
+  document.getElementById('stat-revenue').textContent = orders.reduce((s,o) => s + (o.price||0), 0).toLocaleString();
+
+  // Status breakdown
+  const statuses = ['recebido','atribuido','coleta','rota','entregue'];
+  const colors = {'recebido':'var(--gray)','atribuido':'var(--yellow)','coleta':'var(--red-light)','rota':'#64B5F6','entregue':'var(--green-light)'};
+  document.getElementById('status-breakdown').innerHTML = statuses.map(s => {
+    const count = orders.filter(o => o.status === s).length;
+    const pct = orders.length ? (count / orders.length * 100) : 0;
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+        <span class="status-pill ${s}">${statusLabels[s]}</span>
+        <span style="color:${colors[s]};font-weight:700">${count}</span>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${colors[s]};border-radius:3px;transition:width 0.5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Payment breakdown
+  const pays = ['mpesa','emola','dinheiro'];
+  const payIcons = {mpesa:'📱',emola:'💳',dinheiro:'💵'};
+  document.getElementById('payment-breakdown').innerHTML = pays.map(p => {
+    const count = orders.filter(o => o.payment === p).length;
+    const pct = orders.length ? (count / orders.length * 100) : 0;
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+        <span>${payIcons[p]} ${payLabels[p]}</span>
+        <span style="font-weight:700">${count} (${pct.toFixed(0)}%)</span>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:var(--red);border-radius:3px;transition:width 0.5s"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Recent orders
+  const recent = [...orders].reverse().slice(0, 5);
+  document.getElementById('recent-orders-table').innerHTML = `
+    <table class="orders-table">
+      <thead><tr><th>ID</th><th>Cliente</th><th>Status</th><th>Preço</th><th>Hora</th></tr></thead>
+      <tbody>${recent.map(o => `<tr>
+        <td style="font-family:var(--font-display);font-weight:700">${o.id}</td>
+        <td>${o.name || '—'}</td>
+        <td><span class="status-pill ${o.status}">${statusLabels[o.status]}</span></td>
+        <td style="color:var(--yellow);font-weight:700">${o.price || '—'} MZN</td>
+        <td style="color:var(--gray);font-size:12px">${new Date(o.createdAt).toLocaleTimeString('pt',{hour:'2-digit',minute:'2-digit'})}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+function renderOrdersTable() {
+  const filter = document.getElementById('status-filter').value;
+  let orders = MotoJet.orders.getAll();
+  if (filter) orders = orders.filter(o => o.status === filter);
+  orders = [...orders].reverse();
+
+  document.getElementById('orders-tbody').innerHTML = orders.map(o => `
+  <tr>
+    <td style="font-family:var(--font-display);font-weight:800;font-size:13px">${o.id}</td>
+    <td>
+      <div style="font-weight:600">${o.name || '—'}</div>
+      <div style="font-size:12px;color:var(--gray)">${o.phone || '—'}</div>
+    </td>
+    <td style="font-size:12px;max-width:200px">
+      <div style="color:var(--green-light)">↑ ${(o.pickup||'—').split(',')[0]}</div>
+      <div style="color:var(--red-light)">↓ ${(o.dropoff||'—').split(',')[0]}</div>
+    </td>
+    <td style="font-size:13px">${o.type || '—'}</td>
+    <td style="font-family:var(--font-display);font-weight:800;color:var(--yellow)">${o.price || '—'} MZN</td>
+    <td><span style="font-size:12px;background:rgba(255,255,255,0.06);padding:3px 8px;border-radius:4px">${payLabels[o.payment] || '—'}</span></td>
+    <td><span class="status-pill ${o.status}">${statusLabels[o.status]}</span></td>
+    <td>
+      <select onchange="updateOrderStatus('${o.id}',this.value)" 
+        style="background:var(--dark3);border:1px solid var(--card-border);color:var(--white);padding:4px 8px;border-radius:6px;font-size:12px;cursor:pointer">
+        ${['recebido','atribuido','coleta','rota','entregue'].map(s => 
+          `<option value="${s}" ${o.status===s?'selected':''}>${statusLabels[s]}</option>`
+        ).join('')}
+      </select>
+    </td>
+  </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--gray)">Nenhum pedido encontrado</td></tr>';
+}
+
+function updateOrderStatus(id, status) {
+  MotoJet.orders.updateStatus(id, status);
+  MotoJet.notify('Status atualizado', `Pedido ${id} → ${statusLabels[status]}`, 'success');
+  renderOrdersTable();
+  updateDashboard();
+}
+
+function renderRiders() {
+  const riders = MotoJet.riders.getAll();
+  document.getElementById('riders-grid').innerHTML = riders.map(r => `
+  <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius);padding:28px">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+      <div style="width:56px;height:56px;border-radius:50%;background:${r.online?'var(--green)':'var(--dark3)'};
+        display:flex;align-items:center;justify-content:center;font-size:24px;border:3px solid ${r.online?'var(--green-light)':'var(--card-border)'}">
+        🏍️
+      </div>
+      <div>
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:800">${r.name}</div>
+        <div style="font-size:12px;color:var(--gray)">${r.plate}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--yellow)">${r.rating}</div>
+        <div style="font-size:11px;color:var(--gray)">Avaliação</div>
+      </div>
+      <div style="background:rgba(255,255,255,0.03);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-family:var(--font-display);font-size:24px;font-weight:800">${r.orders}</div>
+        <div style="font-size:11px;color:var(--gray)">Entregas</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:13px;color:var(--gray)">📞 ${r.phone}</span>
+      <span style="${r.online?'color:var(--green-light)':'color:var(--gray)'};font-size:13px;font-weight:700">
+        ${r.online?'🟢 Online':'⚫ Offline'}
+      </span>
+    </div>
+  </div>`).join('');
+}
+
+function initAdminMap() {
+  if (adminMap) return;
+  adminMap = MotoMap.create('admin-map', { zoom: 12 });
+
+  // Show all orders on map
+  const orders = MotoJet.orders.getAll();
+  orders.forEach(o => {
+    if (!o.pickup) return;
+    const from = MotoJet.getLocation(o.pickup);
+    const to = MotoJet.getLocation(o.dropoff || o.pickup);
+    L.circleMarker([from.lat, from.lng], {
+      radius: 8, fillColor: '#D32F2F', color: '#fff', weight: 2, fillOpacity: 0.9
+    }).addTo(adminMap)
+      .bindPopup(`<b>${o.id}</b><br>${o.pickup}<br><span style="color:#FBC02D">${o.price} MZN</span>`);
+  });
+
+  // Show rider positions
+  const riders = MotoJet.riders.getAll().filter(r => r.online);
+  riders.forEach((r, i) => {
+    const pos = MotoJet.maputoLocations[i % MotoJet.maputoLocations.length];
+    L.marker([pos.lat, pos.lng], { icon: MotoMap.icons.rider })
+      .addTo(adminMap)
+      .bindPopup(`<b>🏍️ ${r.name}</b><br>${r.plate}`);
+  });
+}
+</script>
+</body>
+</html>

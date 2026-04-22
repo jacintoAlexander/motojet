@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Motoboy — MotoJet</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏍️</text></svg>">
+  <style>
+    body { overflow: hidden; }
+    .rider-map-full { height: calc(100dvh - 65px - 280px); }
+    @media(max-width:600px) { .rider-map-full { height: calc(100dvh - 65px - 260px); } }
+  </style>
+</head>
+<body class="rider-page">
+
+<div class="notification-stack" id="notif-stack"></div>
+
+<!-- Rider Header -->
+<header class="rider-header">
+  <a href="index.html" class="logo" style="font-size:22px">MOTO<span>JET</span><sup>MZ</sup></a>
+
+  <div style="display:flex;align-items:center;gap:16px">
+    <div style="text-align:right">
+      <div style="font-size:13px;font-weight:700">António Bila</div>
+      <div style="font-size:11px;color:var(--gray)">MZ-1234-A</div>
+    </div>
+    <div style="width:36px;height:36px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;font-size:16px">🏍️</div>
+  </div>
+
+  <div class="rider-status-toggle">
+    <div class="toggle active" id="online-toggle" onclick="toggleOnline()"></div>
+    <span class="online-label" id="online-label" style="color:var(--green-light)">Online</span>
+  </div>
+</header>
+
+<!-- Full map -->
+<div id="rider-map" class="rider-map-full"></div>
+
+<!-- Orders panel -->
+<div class="rider-orders-panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <h3 style="font-family:var(--font-display);font-size:20px;font-weight:900">
+      Pedidos <span id="orders-count" style="color:var(--red)">0</span>
+    </h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm" style="background:var(--card-bg);border:1px solid var(--card-border);color:var(--gray)" onclick="filterOrders('all')">Todos</button>
+      <button class="btn btn-sm" style="background:var(--card-bg);border:1px solid var(--card-border);color:var(--gray)" onclick="filterOrders('recebido')">Novos</button>
+    </div>
+  </div>
+  <div id="orders-list"></div>
+</div>
+
+<!-- Accept Order Modal -->
+<div class="modal-overlay" id="accept-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('accept-modal')">×</button>
+    <div id="accept-modal-content"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/main.js"></script>
+<script src="js/map.js"></script>
+<script>
+let riderMap, isOnline = true, currentFilter = 'all';
+let simulationInterval = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  riderMap = MotoMap.create('rider-map', { zoom: 13 });
+  renderOrders();
+
+  // Refresh orders periodically
+  setInterval(renderOrders, 5000);
+
+  // Show rider position
+  const riderPos = [-25.9600, 32.5850];
+  L.marker(riderPos, { icon: MotoMap.icons.rider })
+    .addTo(riderMap)
+    .bindPopup('<b>🏍️ Você está aqui</b>');
+});
+
+function toggleOnline() {
+  isOnline = !isOnline;
+  const toggle = document.getElementById('online-toggle');
+  const label = document.getElementById('online-label');
+  toggle.classList.toggle('active', isOnline);
+  label.textContent = isOnline ? 'Online' : 'Offline';
+  label.style.color = isOnline ? 'var(--green-light)' : 'var(--gray)';
+  MotoJet.notify(
+    isOnline ? 'Você está online! 🟢' : 'Você está offline 🔴',
+    isOnline ? 'Pronto para receber pedidos' : 'Não receberá novos pedidos',
+    isOnline ? 'success' : 'warning'
+  );
+}
+
+function filterOrders(filter) {
+  currentFilter = filter;
+  renderOrders();
+}
+
+function renderOrders() {
+  let orders = MotoJet.orders.getAll();
+  if (currentFilter !== 'all') orders = orders.filter(o => o.status === currentFilter);
+  orders = orders.reverse(); // newest first
+
+  document.getElementById('orders-count').textContent = orders.length;
+  const list = document.getElementById('orders-list');
+
+  if (orders.length === 0) {
+    list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--gray)">
+      <div style="font-size:32px;margin-bottom:8px">📭</div>
+      <div>Nenhum pedido ${currentFilter !== 'all' ? 'neste estado' : 'disponível'}</div>
+    </div>`;
+    return;
+  }
+
+  const statusColors = { recebido:'var(--gray)', atribuido:'var(--yellow)', coleta:'var(--red-light)', rota:'#64B5F6', entregue:'var(--green-light)' };
+  const statusLabels = { recebido:'Novo', atribuido:'Atribuído', coleta:'Em coleta', rota:'Em rota', entregue:'Entregue' };
+
+  list.innerHTML = orders.map(o => `
+  <div class="rider-order-card">
+    <div class="order-priority" style="background:${statusColors[o.status] || 'var(--red)'}"></div>
+    <div class="rider-order-info">
+      <div class="rider-order-id">${o.id} • ${new Date(o.createdAt).toLocaleTimeString('pt', {hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="rider-order-route">${o.pickup?.split(',')[0] || '—'} → ${o.dropoff?.split(',')[0] || '—'}</div>
+      <div class="rider-order-meta">
+        <span>📦 ${o.type || 'Encomenda'}</span>
+        <span>📏 ${o.distance || '—'} km</span>
+        <span style="color:var(--yellow);font-weight:700">💰 ${o.price || '—'} MZN</span>
+      </div>
+    </div>
+    <div class="rider-order-actions">
+      ${o.status === 'recebido' ? `
+        <button class="btn btn-green btn-sm" onclick="showAcceptModal('${o.id}')">Aceitar</button>
+      ` : `
+        <div>
+          <div class="status-pill ${o.status}" style="font-size:10px">${statusLabels[o.status]}</div>
+          ${['atribuido','coleta','rota'].includes(o.status) ? `
+            <button class="btn btn-primary btn-sm" style="margin-top:6px;font-size:11px" onclick="advanceStatus('${o.id}')">→ Avançar</button>
+          ` : ''}
+        </div>
+      `}
+    </div>
+  </div>`).join('');
+}
+
+function showAcceptModal(orderId) {
+  const order = MotoJet.orders.getById(orderId);
+  if (!order) return;
+
+  document.getElementById('accept-modal-content').innerHTML = `
+    <span style="font-size:40px;display:block;margin-bottom:12px">📋</span>
+    <h3 class="modal-title">Aceitar Pedido</h3>
+    <p class="modal-sub">${order.id}</p>
+
+    <div style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:20px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--card-border);font-size:14px">
+        <span style="color:var(--gray)">Cliente</span><strong>${order.name}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--card-border);font-size:14px">
+        <span style="color:var(--gray)">Recolha</span><strong>${order.pickup}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--card-border);font-size:14px">
+        <span style="color:var(--gray)">Entrega</span><strong>${order.dropoff}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--card-border);font-size:14px">
+        <span style="color:var(--gray)">Distância</span><strong>${order.distance} km</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:18px">
+        <span style="color:var(--gray)">Ganho</span>
+        <strong style="color:var(--yellow);font-family:var(--font-display);font-size:24px">${order.price} MZN</strong>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('accept-modal')">Recusar</button>
+      <button class="btn btn-green" style="flex:2" onclick="acceptOrder('${order.id}')">✓ Aceitar pedido</button>
+    </div>`;
+
+  document.getElementById('accept-modal').classList.add('open');
+}
+
+function acceptOrder(orderId) {
+  MotoJet.orders.updateStatus(orderId, 'atribuido');
+  closeModal('accept-modal');
+  MotoJet.notify('Pedido aceite! 🎉', 'Dirija-se ao local de recolha', 'success');
+
+  // Show route on map
+  const order = MotoJet.orders.getById(orderId);
+  const from = MotoJet.getLocation(order.pickup);
+  const to = MotoJet.getLocation(order.dropoff);
+  MotoMap.drawRoute('rider-map', from, to);
+
+  renderOrders();
+}
+
+function advanceStatus(orderId) {
+  const order = MotoJet.orders.getById(orderId);
+  const next = { atribuido:'coleta', coleta:'rota', rota:'entregue' };
+  const msgs = {
+    coleta: ['Em coleta! 📦', 'Recolhendo a encomenda'],
+    rota: ['Em rota! 🚀', 'A caminho do destino'],
+    entregue: ['Entregue! ✅', 'Entrega concluída com sucesso!']
+  };
+  const newStatus = next[order.status];
+  if (!newStatus) return;
+
+  MotoJet.orders.updateStatus(orderId, newStatus);
+  MotoJet.notify(msgs[newStatus][0], msgs[newStatus][1], newStatus === 'entregue' ? 'success' : 'info');
+
+  if (newStatus === 'rota') {
+    const from = MotoJet.getLocation(order.pickup);
+    const to = MotoJet.getLocation(order.dropoff);
+    MotoMap.drawRoute('rider-map', from, to).then(points => {
+      if (points) MotoMap.simulateRider('rider-map', points);
+    });
+  }
+
+  renderOrders();
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+</script>
+</body>
+</html>
