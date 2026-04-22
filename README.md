@@ -72,7 +72,7 @@ vercel
 ### Número de WhatsApp
 Em `js/main.js`, linha 4:
 ```javascript
-whatsappNumber: '258840000000', // Substitua pelo seu número real
+whatsappNumber: '258878023732', // Substitua pelo seu número real
 ```
 
 ### Preços
